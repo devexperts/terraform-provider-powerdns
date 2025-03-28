@@ -596,3 +596,22 @@ func testPDNSRecordConfigSOA() *PowerDNSRecordResource {
 	record.Arguments.UpdateRecords = append(record.Arguments.UpdateRecords, "something.something. hostmaster.sysa.xyz. 2021021801 10800 3600 604800 3600")
 	return record
 }
+
+const testPDSNRecordWithComments = `
+resource "powerdns_record" "test-comments" {
+	zone = "sysa.xyz."
+	name = "comment.sysa.xyz."
+	type = "A"
+	ttl = 60
+	records = [ "1.1.1.1" ]
+
+    comment { 
+      content = "Test comment #1"
+      account = "Test account #1"
+    }
+
+    comment { 
+      content = "Test comment #2"
+      account = "Test account #2"
+    }
+}`
