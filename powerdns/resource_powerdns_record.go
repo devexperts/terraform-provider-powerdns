@@ -58,6 +58,27 @@ func resourcePDNSRecord() *schema.Resource {
 				ForceNew:    true,
 				Description: "For A and AAAA records, if true, create corresponding PTR.",
 			},
+
+			"comment": {
+				Type: schema.TypeSet,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"content": {
+							Type:     schema.TypeString,
+							Required: true,
+							ForceNew: true,
+						},
+						"account": {
+							Type:     schema.TypeString,
+							Required: true,
+							ForceNew: true,
+						},
+					},
+				},
+				Optional:    true,
+				ForceNew:    true,
+				Description: "A comment about an RRSet.",
+			},
 		},
 	}
 }
@@ -69,6 +90,21 @@ func resourcePDNSRecordCreate(d *schema.ResourceData, meta interface{}) error {
 		Name: d.Get("name").(string),
 		Type: d.Get("type").(string),
 		TTL:  d.Get("ttl").(int),
+	}
+
+	comments := d.Get("comment").(*schema.Set).List()
+	if len(comments) > 0 {
+		commentObjs := make([]Comment, 0, len(comments))
+		for _, comment := range comments {
+			commentMap := comment.(map[string]interface{})
+			commentObjs = append(
+				commentObjs,
+				Comment{
+					Content: commentMap["content"].(string),
+					Account: commentMap["account"].(string),
+				})
+		}
+		rrSet.Comments = commentObjs
 	}
 
 	zone := d.Get("zone").(string)
@@ -196,6 +232,8 @@ func resourcePDNSRecordImport(d *schema.ResourceData, meta interface{}) ([]*sche
 	log.Printf("[INFO] importing PowerDNS Record %s in Zone: %s", recordID, zoneName)
 
 	records, err := client.ListRecordsByID(zoneName, recordID)
+	rrset, err := client.GetRRSetOfRecord(zoneName, recordID)
+
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch PowerDNS Record: %s", err)
 	}
@@ -209,11 +247,20 @@ func resourcePDNSRecordImport(d *schema.ResourceData, meta interface{}) ([]*sche
 		recs = append(recs, r.Content)
 	}
 
+	commentsSet := make([]map[string]interface{}, len(rrset.Comments))
+	for i, comment := range rrset.Comments {
+		commentsSet[i] = map[string]interface{}{
+			"content": comment.Content,
+			"account": comment.Account,
+		}
+	}
+
 	d.Set("zone", zoneName)
 	d.Set("name", records[0].Name)
 	d.Set("ttl", records[0].TTL)
 	d.Set("type", records[0].Type)
 	d.Set("records", recs)
+	d.Set("comment", commentsSet)
 	d.SetId(recordID)
 
 	return []*schema.ResourceData{d}, nil
